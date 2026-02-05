@@ -63,10 +63,11 @@ def pdf_to_images(pdf_path: Path) -> list[Path]:
     return paths
 
 
-def expand_inputs(filepaths: list[str]) -> list[tuple[Path, str]]:
+def expand_inputs(filepaths: list[str]) -> list[tuple[Path, str, str | None, int | None]]:
     """
     Expand input files. PDFs become multiple images.
-    Returns list of (image_path, label) tuples.
+    Returns list of (image_path, label, pdf_name, page_num) tuples.
+    pdf_name and page_num are None for standalone images.
     """
     result = []
     for fp in filepaths:
@@ -78,15 +79,18 @@ def expand_inputs(filepaths: list[str]) -> list[tuple[Path, str]]:
         if path.suffix.lower() == ".pdf":
             print(f"Converting PDF: {path.name}")
             for i, img_path in enumerate(pdf_to_images(path)):
-                result.append((img_path, f"{path.stem}_page{i+1}"))
+                result.append((img_path, f"{path.stem}_page{i+1}", path.stem, i + 1))
         else:
-            result.append((path, path.stem))
+            result.append((path, path.stem, None, None))
 
     return result
 
 
-def process_images(images: list[tuple[Path, str]], output_dir: Path):
+def process_images(images: list[tuple[Path, str, str | None, int | None]], output_dir: Path):
     """Open browser and process each image through notestolatex.com."""
+
+    # Track PDF results: {pdf_name: [(page_num, content), ...]}
+    pdf_results: dict[str, list[tuple[int, str]]] = {}
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=SETTINGS["headless"])
@@ -94,7 +98,7 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
         context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
         page = context.new_page()
 
-        for i, (image_path, label) in enumerate(images):
+        for i, (image_path, label, pdf_name, page_num) in enumerate(images):
             print(f"\n[{i+1}/{len(images)}] Processing: {label}")
 
             try:
@@ -125,10 +129,17 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 content = extract_document_content(full_latex)
                 print(f"  ✓ Got {len(content)} characters")
 
-                # Save to individual txt file
-                output_file = output_dir / f"{label}.txt"
-                output_file.write_text(content)
-                print(f"  ✓ Saved to {output_file}")
+                # Save result
+                if pdf_name is not None:
+                    # Part of a PDF - collect for later
+                    if pdf_name not in pdf_results:
+                        pdf_results[pdf_name] = []
+                    pdf_results[pdf_name].append((page_num, content))
+                else:
+                    # Standalone image - save individually
+                    output_file = output_dir / f"{label}.txt"
+                    output_file.write_text(content)
+                    print(f"  ✓ Saved to {output_file}")
 
             except PlaywrightTimeout as e:
                 print(f"  ✗ Timeout: {e}")
@@ -140,6 +151,18 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 time.sleep(SETTINGS["delay_between"])
 
         browser.close()
+
+    # Save combined PDF results
+    for pdf_name, pages in pdf_results.items():
+        # Sort by page number and combine
+        pages.sort(key=lambda x: x[0])
+        combined = "\n\n".join([
+            f"% === Page {page_num} ===\n{content}"
+            for page_num, content in pages
+        ])
+        output_file = output_dir / f"{pdf_name}.txt"
+        output_file.write_text(combined)
+        print(f"\n✓ Saved combined PDF output to {output_file}")
 
 
 def main():
