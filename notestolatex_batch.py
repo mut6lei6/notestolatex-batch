@@ -120,12 +120,8 @@ def process_images(images: list[tuple[Path, str, str | None, int | None]], outpu
                 )
                 print("  ✓ Conversion complete")
 
-                # Click the copy button to copy LaTeX to clipboard
-                copy_btn.click(timeout=10000)
-                time.sleep(0.5)  # Brief wait for clipboard
-
-                # Read from clipboard
-                full_latex = page.evaluate("navigator.clipboard.readText()")
+                # Read the LaTeX directly from the JavaScript variable
+                full_latex = page.evaluate("() => result")
                 content = extract_document_content(full_latex)
                 print(f"  ✓ Got {len(content)} characters")
 
