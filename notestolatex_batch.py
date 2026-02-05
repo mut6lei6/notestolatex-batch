@@ -24,7 +24,7 @@ except ImportError:
 SELECTORS = {
     "file_input": 'input[type="file"]',       # File upload input
     "submit_button": 'button:has-text("Transform")',  # Convert/submit button
-    "copy_button": 'button:has-text("Copy")',  # Button to copy result
+    "copy_button": 'button:has-text("Copy Your Notes")',  # Button to copy result
 }
 
 SETTINGS = {
@@ -103,15 +103,10 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 page.goto("https://notestolatex.com", wait_until="networkidle", timeout=60000)
                 print("  ✓ Page loaded")
 
-                # Upload the file
+                # Upload the file (auto-starts conversion)
                 file_input = page.locator(SELECTORS["file_input"])
                 file_input.set_input_files(str(image_path))
-                print("  ✓ File uploaded")
-
-                # Click submit
-                print("  Clicking Transform button...")
-                page.click(SELECTORS["submit_button"], timeout=60000)
-                print("  ⏳ Waiting for conversion...")
+                print("  ✓ File uploaded, waiting for conversion...")
 
                 # Wait for "Copy Your Notes" button to appear
                 copy_btn = page.wait_for_selector(
