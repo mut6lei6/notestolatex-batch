@@ -24,7 +24,7 @@ except ImportError:
 SELECTORS = {
     "file_input": 'input[type="file"]',       # File upload input
     "submit_button": 'button:has-text("Transform")',  # Convert/submit button
-    "copy_button": 'button:has-text("Copy Your Notes")',  # Button to copy result
+    "copy_button": 'button:has-text("Copy")',  # Button to copy result
 }
 
 SETTINGS = {
@@ -99,7 +99,9 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
 
             try:
                 # Navigate to the site
-                page.goto("https://notestolatex.com", wait_until="networkidle")
+                print("  Loading page...")
+                page.goto("https://notestolatex.com", wait_until="networkidle", timeout=60000)
+                print("  ✓ Page loaded")
 
                 # Upload the file
                 file_input = page.locator(SELECTORS["file_input"])
@@ -107,7 +109,8 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 print("  ✓ File uploaded")
 
                 # Click submit
-                page.click(SELECTORS["submit_button"])
+                print("  Clicking Transform button...")
+                page.click(SELECTORS["submit_button"], timeout=60000)
                 print("  ⏳ Waiting for conversion...")
 
                 # Wait for "Copy Your Notes" button to appear
@@ -119,7 +122,7 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 print("  ✓ Conversion complete")
 
                 # Click the copy button to copy LaTeX to clipboard
-                copy_btn.click()
+                copy_btn.click(timeout=10000)
                 time.sleep(0.5)  # Brief wait for clipboard
 
                 # Read from clipboard
@@ -132,8 +135,8 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 output_file.write_text(content)
                 print(f"  ✓ Saved to {output_file}")
 
-            except PlaywrightTimeout:
-                print(f"  ✗ Timeout waiting for result")
+            except PlaywrightTimeout as e:
+                print(f"  ✗ Timeout: {e}")
             except Exception as e:
                 print(f"  ✗ Error: {e}")
 
