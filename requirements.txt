@@ -1,0 +1,2 @@
+playwright
+pdf2image
