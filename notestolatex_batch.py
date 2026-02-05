@@ -24,13 +24,13 @@ except ImportError:
 SELECTORS = {
     "file_input": 'input[type="file"]',       # File upload input
     "submit_button": 'button:has-text("Transform")',  # Convert/submit button
-    "result_text": 'pre, code, .latex-output, textarea',  # Where LaTeX result appears
+    "copy_button": 'button:has-text("Copy Your Notes")',  # Button to copy result
 }
 
 SETTINGS = {
     "headless": False,          # False = watch the browser
     "delay_between": 3,         # Seconds between uploads
-    "result_timeout": 120000,   # Max ms to wait for conversion (2 min)
+    "result_timeout": 300000,   # Max ms to wait for conversion (5 min)
 }
 # =============================================================================
 
@@ -90,7 +90,8 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=SETTINGS["headless"])
-        context = browser.new_context()
+        # Grant clipboard permissions
+        context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
         page = context.new_page()
 
         for i, (image_path, label) in enumerate(images):
@@ -109,15 +110,20 @@ def process_images(images: list[tuple[Path, str]], output_dir: Path):
                 page.click(SELECTORS["submit_button"])
                 print("  ⏳ Waiting for conversion...")
 
-                # Wait for result to appear
-                result_el = page.wait_for_selector(
-                    SELECTORS["result_text"],
+                # Wait for "Copy Your Notes" button to appear
+                copy_btn = page.wait_for_selector(
+                    SELECTORS["copy_button"],
                     timeout=SETTINGS["result_timeout"],
                     state="visible"
                 )
+                print("  ✓ Conversion complete")
 
-                # Extract the LaTeX text
-                full_latex = result_el.inner_text()
+                # Click the copy button to copy LaTeX to clipboard
+                copy_btn.click()
+                time.sleep(0.5)  # Brief wait for clipboard
+
+                # Read from clipboard
+                full_latex = page.evaluate("navigator.clipboard.readText()")
                 content = extract_document_content(full_latex)
                 print(f"  ✓ Got {len(content)} characters")
 
